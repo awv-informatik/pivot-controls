@@ -464,6 +464,7 @@ export const Gizmo = ({
     }
 
     mPInv.copy(childrenRef.current.matrixWorld).invert()
+    bb.makeEmpty()
 
     childrenRef.current.traverse((obj) => {
       if (!obj.geometry) {
