@@ -408,7 +408,7 @@ const xDir = new THREE.Vector3(1, 0, 0)
 const yDir = new THREE.Vector3(0, 1, 0)
 const zDir = new THREE.Vector3(0, 0, 1)
 
-const Gizmo = ({
+export const Gizmo = ({
   matrix,
   onDragStart,
   onDrag,
