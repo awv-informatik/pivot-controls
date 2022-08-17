@@ -10,15 +10,15 @@ export default function App() {
   const [matrix3, setMatrix3] = useState(new THREE.Matrix4())
 
   const callback1 = useCallback((local, deltaL, world, deltaW) => {
-    setMatrix1(local)
+    setMatrix1(local.clone())
   }, [])
 
   const callback2 = useCallback((local, deltaL, world, deltaW) => {
-    setMatrix2(local)
+    setMatrix2(local.clone())
   }, [])
 
   const callback3 = useCallback((local, deltaL, world, deltaW) => {
-    setMatrix3(local)
+    setMatrix3(world.clone())
   }, [])
 
   const matrix = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(-1, -1, 0).normalize(), 1).setPosition(20, 20, 20)
@@ -31,7 +31,7 @@ export default function App() {
       <group matrix={matrix} matrixAutoUpdate={false}>
         <Gizmo
           matrix={matrix1}
-          callback={callback1}
+          onDrag={callback1}
           axisColors={[0x444444, 0xdd3333, 0x444444]}
           axisLength={19}
           sliderLength={8}
@@ -50,15 +50,17 @@ export default function App() {
             <Edges />
           </mesh>
         </group>
-        <Gizmo matrix={matrix2} callback={callback2} />
+        <Gizmo matrix={matrix2} onDrag={callback2} offset={[0, 30, 0]} />
       </group>
-      <Gizmo matrix={matrix3} callback={callback3} offset={[0, 40, 0]}>
-        <mesh position={[0, -30, 0]}>
-          <boxGeometry args={[50, 50, 50]} />
-          <meshBasicMaterial />
-          <Edges />
-        </mesh>
-      </Gizmo>
+      <group matrix={matrix3} matrixAutoUpdate={false}>
+        <Gizmo anchor={[1, -1, -1]} onDrag={callback3} offset={[0, 30, 0]} rotation={[1, 1, 1]}>
+          <mesh position={[0, -30, 0]}>
+            <boxGeometry args={[50, 50, 50]} />
+            <meshBasicMaterial />
+            <Edges />
+          </mesh>
+        </Gizmo>
+      </group>
     </Canvas>
   )
 }

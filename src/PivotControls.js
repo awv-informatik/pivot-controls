@@ -1,30 +1,36 @@
 import * as THREE from 'three'
 import { useRef, useState, useMemo, useCallback } from 'react'
-import { useThree } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
+
+const vec1 = new THREE.Vector3()
+const vec2 = new THREE.Vector3()
 
 const calculateOffset = (clickPoint, normal, rayStart, rayDir) => {
   const e1 = normal.dot(normal)
   const e2 = normal.dot(clickPoint) - normal.dot(rayStart)
   const e3 = normal.dot(rayDir)
 
-  const e1V = rayDir
-    .clone()
+  vec1
+    .copy(rayDir)
     .multiplyScalar(e1 / e3)
     .sub(normal)
-  const e2V = rayDir
-    .clone()
+  vec2
+    .copy(rayDir)
     .multiplyScalar(e2 / e3)
     .add(rayStart)
     .sub(clickPoint)
 
-  const offset = -e1V.dot(e2V) / e1V.dot(e1V)
+  const offset = -vec1.dot(vec2) / vec1.dot(vec1)
 
   return offset
 }
 
+const clickDir = new THREE.Vector3()
+const intersectionDir = new THREE.Vector3()
+
 const calculateAngle = (clickPoint, intersectionPoint, origin, e1, e2) => {
-  const clickDir = clickPoint.clone().sub(origin)
-  const intersectionDir = intersectionPoint.clone().sub(origin)
+  clickDir.copy(clickPoint).sub(origin)
+  intersectionDir.copy(intersectionPoint).sub(origin)
 
   const dote1e1 = e1.dot(e1)
   const dote2e2 = e2.dot(e2)
@@ -41,67 +47,19 @@ const calculateAngle = (clickPoint, intersectionPoint, origin, e1, e2) => {
   return angleIntersection - angleClick
 }
 
-const Point = ({ position, radius, color, opacity = 1, handlers, userData }) => {
+const Origin = ({ color, opacity = 1 }) => {
   return (
-    <mesh position={position.clone()} userData={userData} {...handlers}>
-      <sphereGeometry attach="geometry" args={[radius, 32, 16]} />
-      <meshBasicMaterial attach="material" color={color} opacity={opacity} transparent={opacity < 1} />
+    <mesh>
+      <sphereGeometry args={[1, 32, 16]} />
+      <meshBasicMaterial color={color} opacity={opacity} transparent={opacity < 1} />
     </mesh>
   )
 }
 
-const Arrow = ({ position, direction, length, width, color, opacity = 1, handlers, userData, withCone = true }) => {
-  const cylinderWith = width
-  const coneWidth = cylinderWith * 1.5
-  const coneLength = Math.min(coneWidth / 0.12, length / 2.0)
-  const cylinderLength = withCone ? length - coneLength : length
+const upV = new THREE.Vector3(0, 1, 0)
+const offsetMatrix = new THREE.Matrix4()
 
-  return (
-    <group
-      position={position.clone()}
-      quaternion={new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize())}
-      {...handlers}
-      userData={userData}>
-      <mesh position={new THREE.Vector3(0, cylinderLength / 2.0, 0)} renderOrder={500} userData={userData}>
-        <cylinderGeometry attach="geometry" args={[cylinderWith, cylinderWith, cylinderLength, 24, 1]} />
-        <meshBasicMaterial attach="material" color={color} opacity={opacity} transparent={true} />
-      </mesh>
-      {withCone && (
-        <mesh position={new THREE.Vector3(0, cylinderLength + coneLength / 2.0, 0)} renderOrder={500} userData={userData}>
-          <coneGeometry attach="geometry" args={[coneWidth, coneLength, 24, 1]} />
-          <meshBasicMaterial attach="material" color={color} opacity={opacity} transparent={opacity < 1} />
-        </mesh>
-      )}
-    </group>
-  )
-}
-
-const OriginPoint = ({ position, color, opacity = 1, handlers, userData }) => {
-  return (
-    <Point
-      position={position ? position.clone() : new THREE.Vector3()}
-      radius={1}
-      color={color}
-      opacity={opacity}
-      handlers={handlers}
-      userData={userData}
-    />
-  )
-}
-
-const AxisArrow = ({
-  position,
-  direction,
-  applyDelta,
-  updateTransform,
-  color,
-  opacity = 1,
-  handlers,
-  userData,
-  length,
-  width,
-  withCone = true
-}) => {
+const AxisArrow = ({ direction, onDragStart, onDrag, onDragEnd, color, opacity = 1, length = 21, width = 1, withCone = true }) => {
   const camControls = useThree((state) => state.controls)
 
   const objRef = useRef(null)
@@ -119,10 +77,12 @@ const AxisArrow = ({
 
       clickInfo.current = { clickPoint, dir }
 
+      onDragStart()
+
       camControls && (camControls.enabled = false)
       e.target.setPointerCapture(e.pointerId)
     },
-    [direction, camControls]
+    [direction, camControls, onDragStart]
   )
 
   const onPointerMove = useCallback(
@@ -137,25 +97,26 @@ const AxisArrow = ({
         const { clickPoint, dir } = clickInfo.current
 
         const offset = calculateOffset(clickPoint, dir, e.ray.origin, e.ray.direction)
-        const offsetMatrix = new THREE.Matrix4().makeTranslation(dir.x * offset, dir.y * offset, dir.z * offset)
+        offsetMatrix.makeTranslation(dir.x * offset, dir.y * offset, dir.z * offset)
 
-        applyDelta(offsetMatrix)
+        onDrag(offsetMatrix)
       }
     },
-    [applyDelta, isHovered]
+    [onDrag, isHovered]
   )
 
   const onPointerUp = useCallback(
     (e) => {
       e.stopPropagation()
 
-      updateTransform()
-
       clickInfo.current = null
+
+      onDragEnd()
+
       camControls && (camControls.enabled = true)
       e.target.releasePointerCapture(e.pointerId)
     },
-    [camControls, updateTransform]
+    [camControls, onDragEnd]
   )
 
   const onPointerOut = useCallback((e) => {
@@ -164,26 +125,53 @@ const AxisArrow = ({
     setIsHovered(false)
   }, [])
 
+  const { cylinderWidth, cylinderLength, coneWidth, coneLength, matrixL } = useMemo(() => {
+    const cylinderWidth_ = width
+    const coneWidth_ = cylinderWidth_ * 1.5
+    const coneLength_ = Math.min(coneWidth_ / 0.12, length / 2.0)
+    const cylinderLength_ = withCone ? length - coneLength_ : length
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(upV, direction.clone().normalize())
+    const matrixL_ = new THREE.Matrix4().makeRotationFromQuaternion(quaternion)
+
+    return {
+      cylinderWidth: cylinderWidth_,
+      cylinderLength: cylinderLength_,
+      coneWidth: coneWidth_,
+      coneLength: coneLength_,
+      matrixL: matrixL_
+    }
+  }, [direction, length, width, withCone])
+
   const color_ = isHovered ? 0xd5d528 : color
 
   return (
     <group ref={objRef}>
-      <Arrow
-        position={position ? position.clone() : new THREE.Vector3()}
-        direction={direction.clone()}
-        length={length || 21}
-        width={width || 1}
-        color={color_}
-        opacity={opacity}
-        handlers={{ onPointerDown, onPointerMove, onPointerUp, onPointerOut }}
-        userData={userData}
-        withCone={withCone}
-      />
+      <group
+        matrix={matrixL}
+        matrixAutoUpdate={false}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerOut={onPointerOut}>
+        <mesh position={[0, cylinderLength / 2.0, 0]} renderOrder={500}>
+          <cylinderGeometry args={[cylinderWidth, cylinderWidth, cylinderLength, 24, 1]} />
+          <meshBasicMaterial color={color_} opacity={opacity} transparent={opacity < 1} />
+        </mesh>
+        {withCone && (
+          <mesh position={[0, cylinderLength + coneLength / 2.0, 0]} renderOrder={500}>
+            <coneGeometry args={[coneWidth, coneLength, 24, 1]} />
+            <meshBasicMaterial color={color_} opacity={opacity} transparent={opacity < 1} />
+          </mesh>
+        )}
+      </group>
     </group>
   )
 }
 
-const PlaneSlider = ({ dir1, dir2, applyDelta, updateTransform, length, width, color }) => {
+const ray = new THREE.Ray()
+const intersection = new THREE.Vector3()
+
+const PlaneSlider = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, length, width, color }) => {
   const camControls = useThree((state) => state.controls)
 
   const objRef = useRef(null)
@@ -202,10 +190,12 @@ const PlaneSlider = ({ dir1, dir2, applyDelta, updateTransform, length, width, c
 
       clickInfo.current = { clickPoint, plane }
 
+      onDragStart()
+
       camControls && (camControls.enabled = false)
       e.target.setPointerCapture(e.pointerId)
     },
-    [camControls]
+    [camControls, onDragStart]
   )
 
   const onPointerMove = useCallback(
@@ -219,32 +209,32 @@ const PlaneSlider = ({ dir1, dir2, applyDelta, updateTransform, length, width, c
       if (clickInfo.current) {
         const { clickPoint, plane } = clickInfo.current
 
-        const ray = e.ray.clone()
-        const intersection = new THREE.Vector3()
+        ray.copy(e.ray)
         ray.intersectPlane(plane, intersection)
         ray.direction.negate()
         ray.intersectPlane(plane, intersection)
 
-        const offsetV = intersection.clone().sub(clickPoint)
-        const offsetMatrix = new THREE.Matrix4().makeTranslation(offsetV.x, offsetV.y, offsetV.z)
+        intersection.sub(clickPoint)
+        offsetMatrix.makeTranslation(intersection.x, intersection.y, intersection.z)
 
-        applyDelta(offsetMatrix)
+        onDrag(offsetMatrix)
       }
     },
-    [applyDelta, isHovered]
+    [onDrag, isHovered]
   )
 
   const onPointerUp = useCallback(
     (e) => {
       e.stopPropagation()
 
-      updateTransform()
-
       clickInfo.current = null
+
+      onDragEnd()
+
       camControls && (camControls.enabled = true)
       e.target.releasePointerCapture(e.pointerId)
     },
-    [camControls, updateTransform]
+    [camControls, onDragEnd]
   )
 
   const onPointerOut = useCallback((e) => {
@@ -282,7 +272,10 @@ const PlaneSlider = ({ dir1, dir2, applyDelta, updateTransform, length, width, c
   )
 }
 
-const AxisRotator = ({ dir1, dir2, applyDelta, updateTransform, radius, width, color }) => {
+const rotMatrix = new THREE.Matrix4()
+const posNew = new THREE.Vector3()
+
+const AxisRotator = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, radius, width, color }) => {
   const camControls = useThree((state) => state.controls)
 
   const objRef = useRef(null)
@@ -303,10 +296,12 @@ const AxisRotator = ({ dir1, dir2, applyDelta, updateTransform, radius, width, c
 
       clickInfo.current = { clickPoint, origin, e1, e2, normal, plane }
 
+      onDragStart()
+
       camControls && (camControls.enabled = false)
       e.target.setPointerCapture(e.pointerId)
     },
-    [camControls]
+    [camControls, onDragStart]
   )
 
   const onPointerMove = useCallback(
@@ -319,35 +314,36 @@ const AxisRotator = ({ dir1, dir2, applyDelta, updateTransform, radius, width, c
 
       if (clickInfo.current) {
         const { clickPoint, origin, e1, e2, normal, plane } = clickInfo.current
-        const ray = e.ray.clone()
-        const intersection = new THREE.Vector3()
+
+        ray.copy(e.ray)
         ray.intersectPlane(plane, intersection)
         ray.direction.negate()
         ray.intersectPlane(plane, intersection)
 
         const angle = calculateAngle(clickPoint, intersection, origin, e1, e2)
 
-        const rotMatrix = new THREE.Matrix4().makeRotationAxis(normal, angle)
-        const posNew = origin.clone().applyMatrix4(rotMatrix).sub(origin).negate()
+        rotMatrix.makeRotationAxis(normal, angle)
+        posNew.copy(origin).applyMatrix4(rotMatrix).sub(origin).negate()
         rotMatrix.setPosition(posNew)
 
-        applyDelta(rotMatrix)
+        onDrag(rotMatrix)
       }
     },
-    [applyDelta, isHovered]
+    [onDrag, isHovered]
   )
 
   const onPointerUp = useCallback(
     (e) => {
       e.stopPropagation()
 
-      updateTransform()
-
       clickInfo.current = null
+
+      onDragEnd()
+
       camControls && (camControls.enabled = true)
       e.target.releasePointerCapture(e.pointerId)
     },
-    [camControls, updateTransform]
+    [camControls, onDragEnd]
   )
 
   const onPointerOut = useCallback((e) => {
@@ -381,10 +377,34 @@ const AxisRotator = ({ dir1, dir2, applyDelta, updateTransform, radius, width, c
   )
 }
 
-export const Gizmo = ({
+const mL0 = new THREE.Matrix4()
+const mW0 = new THREE.Matrix4()
+const mP = new THREE.Matrix4()
+const mPInv = new THREE.Matrix4()
+const mW = new THREE.Matrix4()
+const mL = new THREE.Matrix4()
+const mL0Inv = new THREE.Matrix4()
+const mdL = new THREE.Matrix4()
+
+const bb = new THREE.Box3()
+const bbObj = new THREE.Box3()
+const center = new THREE.Vector3()
+const size = new THREE.Vector3()
+const anchorOffset = new THREE.Vector3()
+const position = new THREE.Vector3()
+
+const xDir = new THREE.Vector3(1, 0, 0)
+const yDir = new THREE.Vector3(0, 1, 0)
+const zDir = new THREE.Vector3(0, 0, 1)
+
+const Gizmo = ({
   matrix,
-  callback,
+  onDragStart,
+  onDrag,
+  onDragEnd,
+  anchor,
   offset = [0, 0, 0],
+  rotation = [0, 0, 0],
   axisLength = 32,
   sliderLength = 10,
   sliderWidth = 3,
@@ -393,112 +413,157 @@ export const Gizmo = ({
   axisColors = [0xd52828, 0x28a628, 0x2828d7],
   children
 }) => {
+  const parentRef = useRef(null)
   const ref = useRef(null)
+  const gizmoRef = useRef(null)
   const childrenRef = useRef(null)
 
-  // Local gizmo matrix before applying the delta
-  const original = useRef(matrix.clone())
+  const onDragStart_ = useCallback(() => {
+    mL0.copy(ref.current.matrix)
+    mW0.copy(ref.current.matrixWorld)
 
-  const applyDelta = useCallback(
-    (deltaW) => {
-      const parent = ref.current?.matrixWorld
-      const parentInv = parent.clone().invert()
+    onDragStart && onDragStart()
+  }, [onDragStart])
+
+  const onDrag_ = useCallback(
+    (mdW) => {
+      mP.copy(parentRef.current.matrixWorld)
+      mPInv.copy(mP).invert()
       // After applying the delta
-      const world = original.current.clone().premultiply(parent).premultiply(deltaW)
-      const local = world.clone().premultiply(parentInv)
-      const originalInv = original.current.clone().invert()
-      const deltaL = local.clone().multiply(originalInv)
+      mW.copy(mW0).premultiply(mdW)
+      mL.copy(mW).premultiply(mPInv)
+      mL0Inv.copy(mL0).invert()
+      mdL.copy(mL).multiply(mL0Inv)
 
-      callback(local, deltaL, world, deltaW)
+      onDrag && onDrag(mL, mdL, mW, mdW)
     },
-    [callback]
+    [onDrag]
   )
 
-  const updateTransform = useCallback(() => {
-    original.current = matrix.clone()
-  }, [matrix])
+  const onDragEnd_ = useCallback(() => {
+    onDragEnd && onDragEnd()
+  }, [onDragEnd])
 
-  const offsetMatrix = useMemo(() => new THREE.Matrix4().setPosition(...offset), [offset])
+  // TODO: I don't like this useframe
+  useFrame(() => {
+    if (!anchor) {
+      return
+    }
+
+    mPInv.copy(childrenRef.current.matrixWorld).invert()
+
+    childrenRef.current.traverse((obj) => {
+      if (!obj.geometry) {
+        return
+      }
+
+      if (!obj.geometry.boundingBox) {
+        obj.geometry.computeBoundingBox()
+      }
+
+      mL.copy(obj.matrixWorld).premultiply(mPInv)
+
+      bbObj.copy(obj.geometry.boundingBox)
+      bbObj.applyMatrix4(mL)
+      bb.union(bbObj)
+    })
+
+    center.copy(bb.max).add(bb.min).multiplyScalar(0.5)
+    size.copy(bb.max).sub(bb.min).multiplyScalar(0.5)
+    anchorOffset
+      .copy(size)
+      .multiply(new THREE.Vector3(...anchor))
+      .add(center)
+    position.set(...offset).add(anchorOffset)
+
+    gizmoRef.current.position.copy(position)
+  })
 
   return (
-    <group ref={ref}>
-      <group matrix={matrix} matrixAutoUpdate={false}>
-        <group matrix={offsetMatrix} matrixAutoUpdate={false}>
-          <OriginPoint position={new THREE.Vector3()} color={0x000000} />
+    <group ref={parentRef}>
+      <group ref={ref} matrix={matrix} matrixAutoUpdate={false}>
+        <group ref={gizmoRef} position={offset} rotation={rotation}>
+          <Origin color={0x000000} />
           <AxisArrow
-            position={new THREE.Vector3()}
-            direction={new THREE.Vector3(1, 0, 0)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            direction={xDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             length={axisLength}
             color={axisColors[0]}
           />
           <AxisArrow
-            position={new THREE.Vector3()}
-            direction={new THREE.Vector3(0, 1, 0)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            direction={yDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             length={axisLength}
             color={axisColors[1]}
           />
           <AxisArrow
-            position={new THREE.Vector3()}
-            direction={new THREE.Vector3(0, 0, 1)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            direction={zDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             length={axisLength}
             color={axisColors[2]}
           />
           <PlaneSlider
-            dir1={new THREE.Vector3(1, 0, 0)}
-            dir2={new THREE.Vector3(0, 1, 0)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            dir1={xDir}
+            dir2={yDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             length={sliderLength}
             width={sliderWidth}
             color={axisColors[2]}
           />
           <PlaneSlider
-            dir1={new THREE.Vector3(0, 0, 1)}
-            dir2={new THREE.Vector3(1, 0, 0)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            dir1={zDir}
+            dir2={xDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             length={sliderLength}
             width={sliderWidth}
             color={axisColors[1]}
           />
           <PlaneSlider
-            dir1={new THREE.Vector3(0, 1, 0)}
-            dir2={new THREE.Vector3(0, 0, 1)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            dir1={yDir}
+            dir2={zDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             length={sliderLength}
             width={sliderWidth}
             color={axisColors[0]}
           />
           <AxisRotator
-            dir1={new THREE.Vector3(1, 0, 0)}
-            dir2={new THREE.Vector3(0, 1, 0)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            dir1={xDir}
+            dir2={yDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             radius={rotatorRadius}
             width={rotatorWidth}
             color={axisColors[2]}
           />
           <AxisRotator
-            dir1={new THREE.Vector3(0, 0, 1)}
-            dir2={new THREE.Vector3(1, 0, 0)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            dir1={zDir}
+            dir2={xDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             radius={rotatorRadius}
             width={rotatorWidth}
             color={axisColors[1]}
           />
           <AxisRotator
-            dir1={new THREE.Vector3(0, 1, 0)}
-            dir2={new THREE.Vector3(0, 0, 1)}
-            applyDelta={applyDelta}
-            updateTransform={updateTransform}
+            dir1={yDir}
+            dir2={zDir}
+            onDragStart={onDragStart_}
+            onDrag={onDrag_}
+            onDragEnd={onDragEnd_}
             radius={rotatorRadius}
             width={rotatorWidth}
             color={axisColors[0]}
