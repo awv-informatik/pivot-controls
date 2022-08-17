@@ -59,7 +59,18 @@ const Origin = ({ color, opacity = 1 }) => {
 const upV = new THREE.Vector3(0, 1, 0)
 const offsetMatrix = new THREE.Matrix4()
 
-const AxisArrow = ({ direction, onDragStart, onDrag, onDragEnd, color, opacity = 1, length = 21, width = 1, withCone = true }) => {
+const AxisArrow = ({
+  direction,
+  onDragStart,
+  onDrag,
+  onDragEnd,
+  length = 21,
+  width = 1,
+  withCone = true,
+  color,
+  hoveredColor,
+  opacity = 1
+}) => {
   const camControls = useThree((state) => state.controls)
 
   const objRef = useRef(null)
@@ -142,7 +153,7 @@ const AxisArrow = ({ direction, onDragStart, onDrag, onDragEnd, color, opacity =
     }
   }, [direction, length, width, withCone])
 
-  const color_ = isHovered ? 0xd5d528 : color
+  const color_ = isHovered ? hoveredColor : color
 
   return (
     <group ref={objRef}>
@@ -171,7 +182,7 @@ const AxisArrow = ({ direction, onDragStart, onDrag, onDragEnd, color, opacity =
 const ray = new THREE.Ray()
 const intersection = new THREE.Vector3()
 
-const PlaneSlider = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, length, width, color }) => {
+const PlaneSlider = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, length, width, color, hoveredColor, opacity = 1 }) => {
   const camControls = useThree((state) => state.controls)
 
   const objRef = useRef(null)
@@ -249,7 +260,7 @@ const PlaneSlider = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, length, width
     return new THREE.Matrix4().makeBasis(dir1N, dir2N, dir1N.clone().cross(dir2N))
   }, [dir1, dir2])
 
-  const color_ = isHovered ? 0xd5d528 : color
+  const color_ = isHovered ? hoveredColor : color
 
   return (
     <group
@@ -262,11 +273,11 @@ const PlaneSlider = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, length, width
       matrixAutoUpdate={false}>
       <mesh position={[length - width / 2, length / 2, 0]}>
         <planeGeometry args={[width, length]} />
-        <meshBasicMaterial color={color_} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={color_} opacity={opacity} transparent={opacity < 1} side={THREE.DoubleSide} />
       </mesh>
       <mesh position={[(length - width) / 2, length - width / 2, 0]}>
         <planeGeometry args={[length - width, width]} />
-        <meshBasicMaterial color={color_} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={color_} opacity={opacity} transparent={opacity < 1} side={THREE.DoubleSide} />
       </mesh>
     </group>
   )
@@ -275,7 +286,7 @@ const PlaneSlider = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, length, width
 const rotMatrix = new THREE.Matrix4()
 const posNew = new THREE.Vector3()
 
-const AxisRotator = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, radius, width, color }) => {
+const AxisRotator = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, radius, width, color, hoveredColor, opacity = 1 }) => {
   const camControls = useThree((state) => state.controls)
 
   const objRef = useRef(null)
@@ -358,7 +369,7 @@ const AxisRotator = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, radius, width
     return new THREE.Matrix4().makeBasis(dir1N, dir2N, dir1N.clone().cross(dir2N))
   }, [dir1, dir2])
 
-  const color_ = isHovered ? 0xd5d528 : color
+  const color_ = isHovered ? hoveredColor : color
 
   return (
     <group
@@ -371,7 +382,7 @@ const AxisRotator = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, radius, width
       matrixAutoUpdate={false}>
       <mesh>
         <ringGeometry args={[radius - width, radius, 16, 1, 0, Math.PI / 2]} />
-        <meshBasicMaterial color={color_} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={color_} opacity={opacity} transparent={opacity < 1} side={THREE.DoubleSide} />
       </mesh>
     </group>
   )
@@ -411,6 +422,8 @@ const Gizmo = ({
   rotatorRadius = 19,
   rotatorWidth = 3,
   axisColors = [0xd52828, 0x28a628, 0x2828d7],
+  hoveredColor = 0xd5d528,
+  opacity = 1,
   children
 }) => {
   const parentRef = useRef(null)
@@ -483,7 +496,7 @@ const Gizmo = ({
     <group ref={parentRef}>
       <group ref={ref} matrix={matrix} matrixAutoUpdate={false}>
         <group ref={gizmoRef} position={offset} rotation={rotation}>
-          <Origin color={0x000000} />
+          <Origin color={0x000000} opacity={opacity} />
           <AxisArrow
             direction={xDir}
             onDragStart={onDragStart_}
@@ -491,6 +504,8 @@ const Gizmo = ({
             onDragEnd={onDragEnd_}
             length={axisLength}
             color={axisColors[0]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
           <AxisArrow
             direction={yDir}
@@ -499,6 +514,8 @@ const Gizmo = ({
             onDragEnd={onDragEnd_}
             length={axisLength}
             color={axisColors[1]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
           <AxisArrow
             direction={zDir}
@@ -507,6 +524,8 @@ const Gizmo = ({
             onDragEnd={onDragEnd_}
             length={axisLength}
             color={axisColors[2]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
           <PlaneSlider
             dir1={xDir}
@@ -517,6 +536,8 @@ const Gizmo = ({
             length={sliderLength}
             width={sliderWidth}
             color={axisColors[2]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
           <PlaneSlider
             dir1={zDir}
@@ -527,6 +548,8 @@ const Gizmo = ({
             length={sliderLength}
             width={sliderWidth}
             color={axisColors[1]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
           <PlaneSlider
             dir1={yDir}
@@ -537,6 +560,8 @@ const Gizmo = ({
             length={sliderLength}
             width={sliderWidth}
             color={axisColors[0]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
           <AxisRotator
             dir1={xDir}
@@ -547,6 +572,8 @@ const Gizmo = ({
             radius={rotatorRadius}
             width={rotatorWidth}
             color={axisColors[2]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
           <AxisRotator
             dir1={zDir}
@@ -557,6 +584,8 @@ const Gizmo = ({
             radius={rotatorRadius}
             width={rotatorWidth}
             color={axisColors[1]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
           <AxisRotator
             dir1={yDir}
@@ -567,6 +596,8 @@ const Gizmo = ({
             radius={rotatorRadius}
             width={rotatorWidth}
             color={axisColors[0]}
+            hoveredColor={hoveredColor}
+            opacity={opacity}
           />
         </group>
         <group ref={childrenRef}>{children}</group>
