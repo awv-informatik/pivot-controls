@@ -260,11 +260,11 @@ const PlaneSlider = ({ dir1, dir2, onDragStart, onDrag, onDragEnd, length, width
       onPointerUp={onPointerUp}
       onPointerOut={onPointerOut}
       matrixAutoUpdate={false}>
-      <mesh position={new THREE.Vector3(length - width / 2, length / 2, 0)}>
+      <mesh position={[length - width / 2, length / 2, 0]}>
         <planeGeometry args={[width, length]} />
         <meshBasicMaterial color={color_} side={THREE.DoubleSide} />
       </mesh>
-      <mesh position={new THREE.Vector3((length - width) / 2, length - width / 2, 0)}>
+      <mesh position={[(length - width) / 2, length - width / 2, 0]}>
         <planeGeometry args={[length - width, width]} />
         <meshBasicMaterial color={color_} side={THREE.DoubleSide} />
       </mesh>
