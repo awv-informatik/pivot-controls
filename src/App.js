@@ -1,24 +1,23 @@
 import * as THREE from 'three'
-import { useState, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Edges } from '@react-three/drei'
 import { Gizmo } from './PivotControls'
 
 export default function App() {
-  const [matrix1, setMatrix1] = useState(new THREE.Matrix4())
   const [matrix2, setMatrix2] = useState(new THREE.Matrix4())
-  const [matrix3, setMatrix3] = useState(new THREE.Matrix4())
 
   const callback1 = useCallback((local, deltaL, world, deltaW) => {
-    setMatrix1(local.clone())
+    /* setMatrix1(local.clone()) */
   }, [])
 
   const callback2 = useCallback((local, deltaL, world, deltaW) => {
     setMatrix2(local.clone())
   }, [])
 
+  const gizmo3Ref = useRef(null)
   const callback3 = useCallback((local, deltaL, world, deltaW) => {
-    setMatrix3(world.clone())
+    gizmo3Ref.current.matrix.copy(world)
   }, [])
 
   const matrix = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(-1, -1, 0).normalize(), 1).setPosition(20, 20, 20)
@@ -30,8 +29,9 @@ export default function App() {
       <pointLight position={[-10, -10, -10]} />
       <group matrix={matrix} matrixAutoUpdate={false}>
         <Gizmo
-          matrix={matrix1}
+          /* matrix={matrix1} */
           onDrag={callback1}
+          autoTransform
           axisColors={[0x444444, 0xdd3333, 0x444444]}
           axisLength={19}
           sliderLength={8}
@@ -52,7 +52,7 @@ export default function App() {
         </group>
         <Gizmo matrix={matrix2} onDrag={callback2} offset={[0, 30, 0]} />
       </group>
-      <group matrix={matrix3} matrixAutoUpdate={false}>
+      <group ref={gizmo3Ref} matrixAutoUpdate={false}>
         <Gizmo anchor={[1, -1, -1]} onDrag={callback3} offset={[0, 30, 0]} rotation={[1, 1, 1]}>
           <mesh position={[0, -30, 0]}>
             <boxGeometry args={[50, 50, 50]} />

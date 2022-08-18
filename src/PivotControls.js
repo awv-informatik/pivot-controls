@@ -413,6 +413,7 @@ export const Gizmo = ({
   onDragStart,
   onDrag,
   onDragEnd,
+  autoTransform = false,
   anchor,
   offset = [0, 0, 0],
   rotation = [0, 0, 0],
@@ -448,9 +449,13 @@ export const Gizmo = ({
       mL0Inv.copy(mL0).invert()
       mdL.copy(mL).multiply(mL0Inv)
 
+      if (autoTransform) {
+        ref.current.matrix.copy(mL)
+      }
+
       onDrag && onDrag(mL, mdL, mW, mdW)
     },
-    [onDrag]
+    [onDrag, autoTransform]
   )
 
   const onDragEnd_ = useCallback(() => {
