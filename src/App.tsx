@@ -1,22 +1,22 @@
+import React from 'react'
 import * as THREE from 'three'
-import { useState, useRef, useCallback } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Edges } from '@react-three/drei'
 import { Gizmo } from './PivotControls'
 
 export default function App() {
-  const [matrix2, setMatrix2] = useState(new THREE.Matrix4())
+  const [matrix2, setMatrix2] = React.useState(new THREE.Matrix4())
 
-  const callback1 = useCallback((local, deltaL, world, deltaW) => {
+  const callback1 = React.useCallback((local: THREE.Matrix4, deltaL: THREE.Matrix4, world: THREE.Matrix4, deltaW: THREE.Matrix4) => {
     /* setMatrix1(local.clone()) */
   }, [])
 
-  const callback2 = useCallback((local, deltaL, world, deltaW) => {
+  const callback2 = React.useCallback((local: THREE.Matrix4, deltaL: THREE.Matrix4, world: THREE.Matrix4, deltaW: THREE.Matrix4) => {
     setMatrix2(local.clone())
   }, [])
 
-  const gizmo3Ref = useRef(null)
-  const callback3 = useCallback((local, deltaL, world, deltaW) => {
+  const gizmo3Ref = React.useRef<THREE.Group>(null!)
+  const callback3 = React.useCallback((local: THREE.Matrix4, deltaL: THREE.Matrix4, world: THREE.Matrix4, deltaW: THREE.Matrix4) => {
     gizmo3Ref.current.matrix.copy(world)
   }, [])
 
