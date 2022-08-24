@@ -1,5 +1,8 @@
+/* eslint-disable max-lines */
 import React from 'react'
 import * as THREE from 'three'
+import mergeRefs from 'react-merge-refs'
+
 import { useFrame, useThree } from '@react-three/fiber'
 
 const vec1 = new THREE.Vector3()
@@ -441,7 +444,7 @@ const xDir = new THREE.Vector3(1, 0, 0)
 const yDir = new THREE.Vector3(0, 1, 0)
 const zDir = new THREE.Vector3(0, 0, 1)
 
-export const Gizmo: React.FC<{
+type GizmoProps = {
   matrix?: THREE.Matrix4
   onDragStart?: () => void
   onDrag?: (l: THREE.Matrix4, deltaL: THREE.Matrix4, w: THREE.Matrix4, deltaW: THREE.Matrix4) => void
@@ -458,7 +461,10 @@ export const Gizmo: React.FC<{
   axisColors?: [string | number, string | number, string | number]
   hoveredColor?: string | number
   opacity?: number
-}> = ({
+  children?: any
+}
+
+export const Gizmo = React.forwardRef<THREE.Group, GizmoProps>(({
   matrix,
   onDragStart,
   onDrag,
@@ -476,7 +482,7 @@ export const Gizmo: React.FC<{
   hoveredColor = 0xd5d528,
   opacity = 1,
   children
-}) => {
+}, forwardRef) => {
   const parentRef = React.useRef<THREE.Group>(null!)
   const ref = React.useRef<THREE.Group>(null!)
   const gizmoRef = React.useRef<THREE.Group>(null!)
@@ -551,7 +557,7 @@ export const Gizmo: React.FC<{
   return (
     <group ref={parentRef}>
       <group ref={ref} matrix={matrix} matrixAutoUpdate={false}>
-        <group ref={gizmoRef} position={offset} rotation={rotation}>
+        <group ref={mergeRefs([gizmoRef, forwardRef])} position={offset} rotation={rotation}>
           <Origin color={0x000000} opacity={opacity} />
           <AxisArrow
             direction={xDir}
@@ -660,4 +666,6 @@ export const Gizmo: React.FC<{
       </group>
     </group>
   )
-}
+})
+
+Gizmo.displayName = 'Gizmo'
