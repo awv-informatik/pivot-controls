@@ -1,3 +1,5 @@
+@import url('https://rsms.me/inter/inter.css');
+
 * {
   box-sizing: border-box;
 }
@@ -12,5 +14,15 @@ body,
 }
 
 body {
-  background: #f0f0f0;
+  background: #0f544e;
+  font-family: 'Inter var', sans-serif;
+}
+
+.label {
+  display: none;
+  background: #151520;
+  color: white;
+  padding: 6px 8px;
+  border-radius: 7px;
+  white-space: nowrap;
 }
